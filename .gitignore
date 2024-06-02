@@ -53,3 +53,5 @@ dkms.conf
 
 #ignore executeable
 a4download
+test_urls1.txt
+test_urls2.txt
