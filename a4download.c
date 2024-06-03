@@ -45,8 +45,7 @@ int main(int argc, char *argv[])
             nlines++;
         }
     }
-
-    printf("%d\n", nlines);
+    
     fclose(file);
     file = fopen(argv[1], "r");
     int pids[nlines];
@@ -112,7 +111,7 @@ int main(int argc, char *argv[])
                 {
                     execlp("curl", "curl", "-m", timeout, "-o", cline, "-s", url, NULL);
                 }
-                printf("process %d processing line %d terminated with exit status: %d \n", pids, i + 1, errno);
+                fprintf(stderr, "process %d processing line %d terminated with error: %s\n", getpid(), i + 1, strerror(errno));
                 fclose(file);
                 return EXIT_SUCCESS;
             }
@@ -126,13 +125,15 @@ int main(int argc, char *argv[])
 
     for (int i = 0; i < nlines; i++)
     {
-        if (waitpid(pids[i], NULL, WCONTINUED) == -1)
+        int status;
+        waitpid(pids[i], &status, 0);
+        if (WEXITSTATUS(status) == 0)
         {
-            printf("process %d processing line %d terminated with exit status: %d \n", pids[i], i + 1, errno);
+            printf("process %d processing line %d exited normally\n", pids[i], i + 1);
         }
         else
         {
-            printf("process %d processing line %d exited normally \n", pids[i], i + 1);
+            printf("process %d processing line %d terminated with exit status: %d\n", pids[i], i + 1, WEXITSTATUS(status));
         }
     }
 
