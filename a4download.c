@@ -1,10 +1,26 @@
 #include "a4download.h"
 
+typedef struct download
+{
+    char *filename;
+    char *url;
+    char *timelimit;
+} download;
+
+char* str_dupe(const char* src) {
+    if (src == NULL) {
+        return NULL;
+    }
+    char* dest = malloc(strlen(src) + 1);
+    strcpy(dest, src);
+    return dest;
+}
+
 int main(int argc, char *argv[])
 {
     FILE *file = stdin;
-    int max = 0;
-    if (argc != 3)
+    int max = 0;   // max number of processes
+    if (argc != 3) // check for correct passed arguments
     {
         fprintf(stderr, "Usage: %s <download-file> <max-download-processes>\n", argv[0]);
         return EXIT_FAILURE;
@@ -12,13 +28,13 @@ int main(int argc, char *argv[])
     else
     {
         file = fopen(argv[1], "r");
-        if (!file)
+        if (!file) // opens file
         {
             printf("Error opening file '%s'\n", argv[1]);
             return EXIT_FAILURE;
         }
         char *cnum = argv[2];
-        while (*cnum != 0)
+        while (*cnum != 0) // converts the string for max into an integer
         {
             if (*cnum > 47 && *cnum < 58)
             {
@@ -32,61 +48,37 @@ int main(int argc, char *argv[])
             }
         }
 
-        if (max <= 0)
+        if (max <= 0) // ensures there aren't any issues with nex lines of code
         {
             fprintf(stderr, "Max number of processes must be at least 1\n");
             return EXIT_FAILURE;
         }
     }
 
-    char cline[200];
+    char cline[200]; // arbitrary max length of a line
 
-    int nlines = 0;
-    char c;
-    while (!feof(file))
+    download *files = (download *)malloc(sizeof(download)); // initialise files
+    int nlines = 0;                                         // number of lines in the file -> number of files to download
+
+    while ((fgets(cline, sizeof(cline), file)) != NULL) // loop through
     {
-        c = fgetc(file);
-        if (c == '\n')
-        {
-            nlines++;
-        }
-    }
-
-    fclose(file);
-    file = fopen(argv[1], "r");
-    int pids[nlines];
-    int pid;
-    int completep = 0;
-
-    for (int i = 0; i < nlines; i++)
-    {
-        if ((fgets(cline, sizeof(cline), file)) == NULL)
-        {
-            break;
-        }
-
         char *url = cline;
-        int len = 0;
-
-        while (*url != 10 && *url != 32)
+        while (*url != '\n' && *url != ' ' && *url != '\0')
         {
             ++url;
-            len++;
         }
         *url++ = 0;
         char *timeout = url;
-        while (*timeout != 10 && *timeout != 32)
+        while (*timeout != '\n' && *timeout != ' ' && *timeout != '\0')
         {
             ++timeout;
-            len++;
         }
         *timeout++ = 0;
         char *cchar = timeout;
-        if (*timeout > 47 && *timeout < 58)
+        if (*timeout > '0' && *timeout < '9')
         {
-            while (*cchar != 10 && *cchar != 32)
+            while (*cchar != '\n' && *cchar != ' ' && *cchar != '\0')
             {
-                len++;
                 cchar++;
             }
             *cchar = 0;
@@ -95,19 +87,24 @@ int main(int argc, char *argv[])
         {
             timeout = NULL;
         }
+        files = (download *)realloc(files, (sizeof(download) * (nlines + 1)));
+        files[nlines].filename = str_dupe(cline);
+        files[nlines].url = str_dupe(url);
+        files[nlines++].timelimit = str_dupe(timeout);
+    }
 
-        char command[len + 17];
-        if (timeout == NULL)
-        {
-            sprintf(command, "curl -o %s -s %s", cline, url);
-        }
-        else
-        {
-            sprintf(command, "curl -m %s -o %s -s %s", timeout, cline, url);
-        }
+    fclose(file); //file no longer needed 
+    
 
+    int pids[nlines];
+    int pid;
+    int completep = 0;
+
+    for (int i = 0; i < nlines; i++)
+    {
         if (max <= 0)
         {
+            //if the max processes has been reach the parent process will wait before creating a new one
             int status;
             waitpid(pids[completep], &status, 0);
             if (WEXITSTATUS(status) == 0)
@@ -122,13 +119,14 @@ int main(int argc, char *argv[])
         }
         if ((pid = fork()) == 0)
         {
-            if (timeout == NULL)
+            //child component calls curl to download the next file
+            if (files[i].timelimit == NULL)
             {
-                execlp("curl", "curl", "-o", cline, "-s", url, NULL);
+                execlp("curl", "curl", "-o", files[i].filename, "-s", files[i].url, NULL);
             }
             else
             {
-                execlp("curl", "curl", "-m", timeout, "-o", cline, "-s", url, NULL);
+                execlp("curl", "curl", "-m", files[i].timelimit, "-o", files[i].filename, "-s", files[i].url, NULL);
             }
             fprintf(stderr, "process %d processing line %d terminated with error: %s\n", getpid(), i + 1, strerror(errno));
             fclose(file);
@@ -136,12 +134,14 @@ int main(int argc, char *argv[])
         }
         else
         {
+            //reports processing within the parent comonent
             pids[i] = pid;
             printf("process %d processing line %d\n", pid, i + 1);
             max--;
         }
     }
 
+    // completes all downloads and returns their statuses
     for (int i = completep; i < nlines; i++)
     {
         int status;
@@ -156,7 +156,14 @@ int main(int argc, char *argv[])
         }
     }
 
-    fclose(file);
+    // free all of the data
+    for (int i = 0; i < nlines; i++)
+    {
+        free(files[i].filename);
+        free(files[i].url);
+        free(files[i].timelimit);
+    }
+    free(files);
 
     return (0);
 }
