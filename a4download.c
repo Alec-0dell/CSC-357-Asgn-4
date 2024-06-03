@@ -31,6 +31,12 @@ int main(int argc, char *argv[])
                 return EXIT_FAILURE;
             }
         }
+
+        if (max <= 0)
+        {
+            fprintf(stderr, "Max number of processes must be at least 1\n");
+            return EXIT_FAILURE;
+        }
     }
 
     char cline[200];
@@ -45,11 +51,12 @@ int main(int argc, char *argv[])
             nlines++;
         }
     }
-    
+
     fclose(file);
     file = fopen(argv[1], "r");
     int pids[nlines];
     int pid;
+    int completep = 0;
 
     for (int i = 0; i < nlines; i++)
     {
@@ -99,31 +106,43 @@ int main(int argc, char *argv[])
             sprintf(command, "curl -m %s -o %s -s %s", timeout, cline, url);
         }
 
-        if (max > 0)
+        if (max <= 0)
         {
-            if ((pid = fork()) == 0)
+            int status;
+            waitpid(pids[completep], &status, 0);
+            if (WEXITSTATUS(status) == 0)
             {
-                if (timeout == NULL)
-                {
-                    execlp("curl", "curl", "-o", cline, "-s", url, NULL);
-                }
-                else
-                {
-                    execlp("curl", "curl", "-m", timeout, "-o", cline, "-s", url, NULL);
-                }
-                fprintf(stderr, "process %d processing line %d terminated with error: %s\n", getpid(), i + 1, strerror(errno));
-                fclose(file);
-                return EXIT_SUCCESS;
+                printf("process %d processing line %d exited normally\n", pids[completep], completep + 1);
             }
             else
             {
-                pids[i] = pid;
-                printf("process %d processing line %d\n", pid, i + 1);
+                printf("process %d processing line %d terminated with exit status: %d\n", pids[completep], completep + 1, WEXITSTATUS(status));
             }
+            completep++;
+        }
+        if ((pid = fork()) == 0)
+        {
+            if (timeout == NULL)
+            {
+                execlp("curl", "curl", "-o", cline, "-s", url, NULL);
+            }
+            else
+            {
+                execlp("curl", "curl", "-m", timeout, "-o", cline, "-s", url, NULL);
+            }
+            fprintf(stderr, "process %d processing line %d terminated with error: %s\n", getpid(), i + 1, strerror(errno));
+            fclose(file);
+            return EXIT_SUCCESS;
+        }
+        else
+        {
+            pids[i] = pid;
+            printf("process %d processing line %d\n", pid, i + 1);
+            max--;
         }
     }
 
-    for (int i = 0; i < nlines; i++)
+    for (int i = completep; i < nlines; i++)
     {
         int status;
         waitpid(pids[i], &status, 0);
