@@ -58,10 +58,8 @@ int main(int argc, char *argv[])
         {
             break;
         }
-        //printf("%d + %s", getpid(), cline);
 
         char *url = cline;
-        int timeout = 0;
         int len = 0;
 
         while (*url != 10 && *url != 32)
@@ -70,60 +68,73 @@ int main(int argc, char *argv[])
             len++;
         }
         *url++ = 0;
-        char *cchar = url;
-        while (*cchar != 10 && *cchar != 32)
+        char *timeout = url;
+        while (*timeout != 10 && *timeout != 32)
         {
-            ++cchar;
+            ++timeout;
             len++;
         }
-        if (*cchar == 32)
+        *timeout++ = 0;
+        char *cchar = timeout;
+        if (*timeout > 47 && *timeout < 58)
         {
-            *cchar++ = 0;
             while (*cchar != 10 && *cchar != 32)
             {
-                timeout = (timeout * 10) + (*cchar - 48);
-                ++cchar;
                 len++;
+                cchar++;
             }
+            *cchar = 0;
         }
-        *cchar++ = 0;
+        else
+        {
+            timeout = NULL;
+        }
 
         char command[len + 17];
-        if (timeout == 0)
+        if (timeout == NULL)
         {
             sprintf(command, "curl -o %s -s %s", cline, url);
         }
         else
         {
-            sprintf(command, "curl -m %d -o %s -s %s", timeout, cline, url);
+            sprintf(command, "curl -m %s -o %s -s %s", timeout, cline, url);
         }
 
         if (max > 0)
         {
             if ((pid = fork()) == 0)
             {
-                
-                // system(command);
-                sleep(5);
-                //printf("%s + %d\n", command, getpid());
+                if (timeout == NULL)
+                {
+                    execlp("curl", "curl", "-o", cline, "-s", url, NULL);
+                }
+                else
+                {
+                    execlp("curl", "curl", "-m", timeout, "-o", cline, "-s", url, NULL);
+                }
+                printf("process %d processing line %d terminated with exit status: %d \n", pids, i + 1, errno);
                 fclose(file);
                 return EXIT_SUCCESS;
-            } else {
+            }
+            else
+            {
                 pids[i] = pid;
-                printf("process %d processing line %d\n", pid, i+1);
+                printf("process %d processing line %d\n", pid, i + 1);
             }
         }
     }
 
     for (int i = 0; i < nlines; i++)
     {
-        if(waitpid(pids[i],NULL, WCONTINUED) == -1){
+        if (waitpid(pids[i], NULL, WCONTINUED) == -1)
+        {
             printf("process %d processing line %d terminated with exit status: %d \n", pids[i], i + 1, errno);
-        } else {
+        }
+        else
+        {
             printf("process %d processing line %d exited normally \n", pids[i], i + 1);
         }
     }
-    
 
     fclose(file);
 
