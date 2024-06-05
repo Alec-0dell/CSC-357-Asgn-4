@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
     char cline[200]; // arbitrary max length of a line
 
     download *files = (download *)malloc(sizeof(download)); // initialise files
-    int nlines = 0;                                         // number of lines in the file -> number of files to download
+    int nlines = 0; // number of lines in the file -> number of files to download
 
     while ((fgets(cline, sizeof(cline), file)) != NULL) // loop through
     {
@@ -96,9 +96,9 @@ int main(int argc, char *argv[])
     fclose(file); //file no longer needed 
     
 
-    int pids[nlines];
-    int pid;
-    int completep = 0;
+    int pids[nlines]; //tracks the pid of each created process
+    int pid; //pid of current fork
+    int completep = 0; //number of completed processes
 
     for (int i = 0; i < nlines; i++)
     {
@@ -134,7 +134,7 @@ int main(int argc, char *argv[])
         }
         else
         {
-            //reports processing within the parent comonent
+            //reports processing within the parent process
             pids[i] = pid;
             printf("process %d processing line %d\n", pid, i + 1);
             max--;
